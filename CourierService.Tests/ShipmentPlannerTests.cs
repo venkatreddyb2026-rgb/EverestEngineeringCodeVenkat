@@ -1,5 +1,8 @@
 ﻿using CourierService.Core.Interfaces;
 using CourierService.Core.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace CourierService.Core.Implementation
 {
@@ -14,109 +17,72 @@ namespace CourierService.Core.Implementation
             if (candidates.Count == 0)
                 return Array.Empty<Package>();
 
-            var dp = new PlanState[maxLoadKg + 1];
-            dp[0] = PlanState.Start();
+            List<Package>? best = null;
 
-            for (int i = 0; i < candidates.Count; i++)
+            foreach (var combo in GenerateCombos(candidates))
             {
-                var p = candidates[i];
+                int totalWeight = combo.Sum(p => p.WeightKg);
+                if (totalWeight > maxLoadKg)
+                    continue;
 
-                for (int w = maxLoadKg; w >= p.WeightKg; w--)
-                {
-                    if (!dp[w - p.WeightKg].HasValue)
-                        continue;
-
-                    var prev = dp[w - p.WeightKg];
-
-                    var candidateState = new PlanState(
-                        hasValue: true,
-                        count: prev.Count + 1,
-                        totalWeight: prev.TotalWeight + p.WeightKg,
-                        maxDistance: Math.Max(prev.MaxDistance, p.DistanceKm),
-                        totalDistance: prev.TotalDistance + p.DistanceKm,
-                        prevW: w - p.WeightKg,
-                        prevIdx: i
-                    );
-
-                    if (!dp[w].HasValue || Better(candidateState, dp[w]))
-                        dp[w] = candidateState;
-                }
+                if (best == null || Better(combo, best))
+                    best = combo;
             }
 
-            int bestW = 0;
-            bool foundAny = false;
-            PlanState best = default;
-
-            for (int w = 0; w <= maxLoadKg; w++)
-            {
-                if (!dp[w].HasValue) continue;
-
-                if (!foundAny || Better(dp[w], best))
-                {
-                    best = dp[w];
-                    bestW = w;
-                    foundAny = true;
-                }
-            }
-
-            if (!foundAny)
+            if (best == null)
                 return Array.Empty<Package>();
 
-            var picked = new List<Package>();
-            int curW = bestW;
-
-            while (curW >= 0 && dp[curW].HasValue && dp[curW].PrevIdx >= 0)
-            {
-                var s = dp[curW];
-                picked.Add(candidates[s.PrevIdx]);
-                curW = s.PrevW;
-            }
-
-            picked.Sort((a, b) =>
+            // deterministic order within shipment
+            best.Sort((a, b) =>
             {
                 int c = a.DistanceKm.CompareTo(b.DistanceKm);
                 if (c != 0) return c;
                 return string.Compare(a.Id, b.Id, StringComparison.OrdinalIgnoreCase);
             });
 
-            return picked;
+            return best;
         }
 
-        private static bool Better(PlanState a, PlanState b)
+        private static IEnumerable<List<Package>> GenerateCombos(List<Package> items)
         {
+            int n = items.Count;
+
+            for (int i = 0; i < n; i++)
+                yield return new List<Package> { items[i] };
+
+            for (int i = 0; i < n; i++)
+                for (int j = i + 1; j < n; j++)
+                    yield return new List<Package> { items[i], items[j] };
+
+            for (int i = 0; i < n; i++)
+                for (int j = i + 1; j < n; j++)
+                    for (int k = j + 1; k < n; k++)
+                        yield return new List<Package> { items[i], items[j], items[k] };
+        }
+
+        private static bool Better(List<Package> a, List<Package> b)
+        {
+            // 1) maximize package count
             if (a.Count != b.Count) return a.Count > b.Count;
-            if (a.TotalWeight != b.TotalWeight) return a.TotalWeight > b.TotalWeight;
 
-            if (a.MaxDistance != b.MaxDistance) return a.MaxDistance < b.MaxDistance;
+            // 2) if tie, maximize total weight
+            int aWeight = a.Sum(p => p.WeightKg);
+            int bWeight = b.Sum(p => p.WeightKg);
+            if (aWeight != bWeight) return aWeight > bWeight;
 
-            return a.TotalDistance < b.TotalDistance;
-        }
+            // 3) if tie, prefer smaller farthest distance (earlier delivery/return)
+            int aMaxDist = a.Max(p => p.DistanceKm);
+            int bMaxDist = b.Max(p => p.DistanceKm);
+            if (aMaxDist != bMaxDist) return aMaxDist < bMaxDist;
 
-        private struct PlanState
-        {
-            public bool HasValue { get; }
-            public int Count { get; }
-            public int TotalWeight { get; }
-            public int MaxDistance { get; }
-            public int TotalDistance { get; }
-            public int PrevW { get; }
-            public int PrevIdx { get; }
+            // 4) deterministic tie-breakers
+            int aTotalDist = a.Sum(p => p.DistanceKm);
+            int bTotalDist = b.Sum(p => p.DistanceKm);
+            if (aTotalDist != bTotalDist) return aTotalDist < bTotalDist;
 
-            public PlanState(bool hasValue, int count, int totalWeight, int maxDistance, int totalDistance, int prevW, int prevIdx)
-            {
-                HasValue = hasValue;
-                Count = count;
-                TotalWeight = totalWeight;
-                MaxDistance = maxDistance;
-                TotalDistance = totalDistance;
-                PrevW = prevW;
-                PrevIdx = prevIdx;
-            }
-
-            public static PlanState Start()
-            {
-                return new PlanState(true, 0, 0, 0, 0, -1, -1);
-            }
+            string aKey = string.Join("|", a.OrderBy(x => x.Id).Select(x => x.Id));
+            string bKey = string.Join("|", b.OrderBy(x => x.Id).Select(x => x.Id));
+            return string.Compare(aKey, bKey, StringComparison.OrdinalIgnoreCase) < 0;
         }
     }
 }

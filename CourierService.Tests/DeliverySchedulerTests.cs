@@ -14,19 +14,19 @@ namespace CourierService.Tests
             var scheduler = new DeliveryScheduler(costCalc, planner);
 
             var packages = new List<Package>
-        {
-            new Package("P1", 50, 30, "NA"),
-            new Package("P2", 75, 125, "NA"),
-            new Package("P3", 75, 100, "NA")
-        };
+            {
+                new Package("P1", 50, 30, "NA"),
+                new Package("P2", 100, 125, "NA"),
+                new Package("P3", 75, 100, "NA")
+            };
 
             var vehicles = new VehicleSpec(count: 1, speedKmPerHour: 50, maxLoadKg: 200);
 
             var results = scheduler.Schedule(baseCost: 100, packages: packages, vehicleSpec: vehicles);
 
-            AssertResult(results, "P1", expectedTime: 0.60);
             AssertResult(results, "P3", expectedTime: 2.00);
-            AssertResult(results, "P2", expectedTime: 6.50);
+            AssertResult(results, "P2", expectedTime: 2.50);
+            AssertResult(results, "P1", expectedTime: 5.60);
         }
 
         private static void AssertResult(IReadOnlyList<DeliveryResult> results, string id, double expectedTime)
