@@ -1,6 +1,5 @@
 ﻿using CourierService.Core.Implementation;
 using CourierService.Core.Models;
-using Xunit;
 
 namespace CourierService.Tests
 {
@@ -21,7 +20,7 @@ namespace CourierService.Tests
             string input =
 @"100 2
 PKG1 5 5 OFR001
-"; // missing second package
+";
 
             Assert.Throws<InputFormatException>(() => parser.Parse(input));
         }
@@ -34,8 +33,8 @@ PKG1 5 5 OFR001
             string input =
 @"100 1
 PKG1 5 5 OFR001
-2 70
-"; // missing maxLoad
+1 70
+";
 
             Assert.Throws<InputFormatException>(() => parser.Parse(input));
         }
