@@ -10,27 +10,34 @@ try
     var parser = new InputParser();
     var parsed = parser.Parse(input);
 
-    var rules = LoadOfferRules("offers.json");
-    IOfferEngine offerEngine = new OfferEngine(rules);
+    var offerRules = LoadOfferRules("offers.json");
+    IOfferEngine offerEngine = new OfferEngine(offerRules);
     ICostCalculator costCalculator = new CostCalculator(offerEngine);
 
     if (parsed.VehicleSpec == null)
     {
-        foreach (var p in parsed.Packages)
+        foreach (var package in parsed.Packages)
         {
-            var r = costCalculator.Calculate(parsed.BaseCost, p);
-            Console.WriteLine($"{r.PackageId} {r.Discount} {r.TotalCost}");
+            var result = costCalculator.Calculate(parsed.BaseCost, package);
+            Console.WriteLine($"{result.PackageId} {result.Discount} {result.TotalCost}");
         }
+
         return;
     }
 
     IShipmentPlanner planner = new ShipmentPlanner();
     IDeliveryScheduler scheduler = new DeliveryScheduler(costCalculator, planner);
 
-    var results = scheduler.Schedule(parsed.BaseCost, parsed.Packages, parsed.VehicleSpec);
+    var deliveryResults = scheduler.Schedule(
+        parsed.BaseCost,
+        parsed.Packages,
+        parsed.VehicleSpec);
 
-    foreach (var r in results)
-        Console.WriteLine($"{r.PackageId} {r.Discount} {r.TotalCost} {r.DeliveryTimeHours:0.00}");
+    foreach (var result in deliveryResults)
+    {
+        Console.WriteLine(
+            $"{result.PackageId} {result.Discount} {result.TotalCost} {result.DeliveryTimeHours:0.00}");
+    }
 }
 catch (InputFormatException ex)
 {
@@ -50,6 +57,7 @@ static string ReadAllInput()
 
     var lines = new List<string>();
     string? line;
+
     while ((line = Console.ReadLine()) != null && line.Length > 0)
         lines.Add(line);
 
@@ -63,16 +71,16 @@ static List<OfferRule> LoadOfferRules(string fileName)
 
     string json = File.ReadAllText(fileName);
 
-    var raw = JsonSerializer.Deserialize<List<OfferRuleDto>>(
+    var rawRules = JsonSerializer.Deserialize<List<OfferRuleDto>>(
         json,
         new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
-    if (raw == null || raw.Count == 0)
+    if (rawRules == null || rawRules.Count == 0)
         throw new InvalidOperationException("offers.json is empty or invalid.");
 
-    var rules = new List<OfferRule>(raw.Count);
+    var rules = new List<OfferRule>(rawRules.Count);
 
-    foreach (var r in raw)
+    foreach (var r in rawRules)
     {
         if (string.IsNullOrWhiteSpace(r.Code))
             continue;
