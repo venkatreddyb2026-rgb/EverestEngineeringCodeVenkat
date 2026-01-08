@@ -11,4 +11,10 @@
     <ProjectReference Include="..\CourierService.Core\CourierService.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="offers.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
