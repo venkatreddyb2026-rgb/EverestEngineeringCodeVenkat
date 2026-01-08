@@ -1,7 +1,6 @@
 ﻿using CourierService.Core.Implementation;
 using CourierService.Core.Interfaces;
 using CourierService.Core.Models;
-using Xunit;
 
 namespace CourierService.Tests
 {
