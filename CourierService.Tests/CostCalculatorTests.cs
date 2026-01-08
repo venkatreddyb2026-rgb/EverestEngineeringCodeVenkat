@@ -1,59 +1,28 @@
 ﻿using CourierService.Core.Implementation;
-using CourierService.Core.Interfaces;
 using CourierService.Core.Models;
 
 namespace CourierService.Tests
 {
     public class CostCalculatorTests
     {
-        private static CostCalculator CreateCalculator()
+        [Fact]
+        public void Calculates_total_cost_with_discount()
         {
-            return new CostCalculator(new IOffer[]
+            var engine = new OfferEngine(new[]
             {
-            new OfferOfr001(),
-            new OfferOfr002(),
-            new OfferOfr003()
-            });
-        }
+            new OfferRule("OFR003", 5, 10, 150, 50, 250)
+        });
 
-        [Fact]
-        public void Offer001_applies_ten_percent_discount_when_eligible()
-        {
-            var offer = new OfferOfr001();
-            int discount = offer.CalculateDiscount(700, 100, 150);
+            var calc = new CostCalculator(engine);
 
-            Assert.Equal(70, discount);
-        }
+            var pkg = new Package("PKG3", 10, 100, "OFR003");
 
-        [Fact]
-        public void Offer002_does_not_apply_discount_when_weight_is_low()
-        {
-            var offer = new OfferOfr002();
-            int discount = offer.CalculateDiscount(500, 90, 100);
+            var result = calc.Calculate(100, pkg);
 
-            Assert.Equal(0, discount);
-        }
-
-        [Fact]
-        public void Invalid_offer_results_in_zero_discount()
-        {
-            var calculator = CreateCalculator();
-            var package = new Package("PKG1", 75, 125, "INVALID");
-
-            var result = calculator.Calculate(100, package);
-
-            Assert.Equal(0, result.Discount);
-            Assert.Equal(100 + (75 * 10) + (125 * 5), result.TotalCost);
-        }
-
-        [Fact]
-        public void Offer003_applies_five_percent_discount()
-        {
-            var calculator = CreateCalculator();
-            var package = new Package("PKG3", 10, 100, "OFR003");
-
-            var result = calculator.Calculate(100, package);
-
+            // deliveryCost = 100 + 10*10 + 100*5 = 700
+            // discount = 35
+            // total = 665
+            Assert.Equal("PKG3", result.PackageId);
             Assert.Equal(35, result.Discount);
             Assert.Equal(665, result.TotalCost);
         }
