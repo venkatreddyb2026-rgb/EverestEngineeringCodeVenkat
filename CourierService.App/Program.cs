@@ -1,98 +1,59 @@
 ﻿using CourierService.Core.Implementation;
 using CourierService.Core.Interfaces;
 using CourierService.Core.Models;
-using System.Globalization;
 using System.Text.Json;
 
-string input;
+try
+{
+    string input = ReadAllInput();
 
-if (Console.IsInputRedirected)
-{
-    input = Console.In.ReadToEnd();
+    var parser = new InputParser();
+    var parsed = parser.Parse(input);
+
+    var rules = LoadOfferRules("offers.json");
+    IOfferEngine offerEngine = new OfferEngine(rules);
+    ICostCalculator costCalculator = new CostCalculator(offerEngine);
+
+    if (parsed.VehicleSpec == null)
+    {
+        foreach (var p in parsed.Packages)
+        {
+            var r = costCalculator.Calculate(parsed.BaseCost, p);
+            Console.WriteLine($"{r.PackageId} {r.Discount} {r.TotalCost}");
+        }
+        return;
+    }
+
+    IShipmentPlanner planner = new ShipmentPlanner();
+    IDeliveryScheduler scheduler = new DeliveryScheduler(costCalculator, planner);
+
+    var results = scheduler.Schedule(parsed.BaseCost, parsed.Packages, parsed.VehicleSpec);
+
+    foreach (var r in results)
+        Console.WriteLine($"{r.PackageId} {r.Discount} {r.TotalCost} {r.DeliveryTimeHours:0.00}");
 }
-else
+catch (InputFormatException ex)
 {
+    Console.Error.WriteLine(ex.Message);
+    Environment.ExitCode = 1;
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine("Unexpected error: " + ex.Message);
+    Environment.ExitCode = 1;
+}
+
+static string ReadAllInput()
+{
+    if (Console.IsInputRedirected)
+        return Console.In.ReadToEnd();
+
     var lines = new List<string>();
     string? line;
     while ((line = Console.ReadLine()) != null && line.Length > 0)
         lines.Add(line);
 
-    input = string.Join(Environment.NewLine, lines);
-}
-
-var tokens = input.Split(null as char[], StringSplitOptions.RemoveEmptyEntries);
-
-if (tokens.Length < 2)
-{
-    Console.Error.WriteLine("Invalid input: missing base cost or package count.");
-    Environment.ExitCode = 1;
-    return;
-}
-
-int index = 0;
-
-int baseCost = int.Parse(tokens[index++], CultureInfo.InvariantCulture);
-int packageCount = int.Parse(tokens[index++], CultureInfo.InvariantCulture);
-
-var packages = new List<Package>(packageCount);
-
-for (int i = 0; i < packageCount; i++)
-{
-    if (index + 3 >= tokens.Length)
-    {
-        Console.Error.WriteLine("Invalid input: incomplete package details.");
-        Environment.ExitCode = 1;
-        return;
-    }
-
-    string id = tokens[index++];
-    int weight = int.Parse(tokens[index++], CultureInfo.InvariantCulture);
-    int distance = int.Parse(tokens[index++], CultureInfo.InvariantCulture);
-    string offer = tokens[index++];
-
-    packages.Add(new Package(id, weight, distance, offer));
-}
-
-// Load offers.json
-var rules = LoadOfferRules("offers.json");
-
-IOfferEngine offerEngine = new OfferEngine(rules);
-ICostCalculator costCalculator = new CostCalculator(offerEngine);
-
-// Part 1 (no vehicle info)
-if (index >= tokens.Length)
-{
-    foreach (var pkg in packages)
-    {
-        var result = costCalculator.Calculate(baseCost, pkg);
-        Console.WriteLine($"{result.PackageId} {result.Discount} {result.TotalCost}");
-    }
-
-    return;
-}
-
-// Part 2 (vehicle info exists)
-if (index + 2 >= tokens.Length)
-{
-    Console.Error.WriteLine("Invalid input: vehicle info is incomplete.");
-    Environment.ExitCode = 1;
-    return;
-}
-
-int vehicleCount = int.Parse(tokens[index++], CultureInfo.InvariantCulture);
-int speed = int.Parse(tokens[index++], CultureInfo.InvariantCulture);
-int maxLoad = int.Parse(tokens[index++], CultureInfo.InvariantCulture);
-
-var vehicleSpec = new VehicleSpec(vehicleCount, speed, maxLoad);
-
-IShipmentPlanner planner = new ShipmentPlanner();
-IDeliveryScheduler scheduler = new DeliveryScheduler(costCalculator, planner);
-
-var deliveryResults = scheduler.Schedule(baseCost, packages, vehicleSpec);
-
-foreach (var r in deliveryResults)
-{
-    Console.WriteLine($"{r.PackageId} {r.Discount} {r.TotalCost} {r.DeliveryTimeHours:0.00}");
+    return string.Join(Environment.NewLine, lines);
 }
 
 static List<OfferRule> LoadOfferRules(string fileName)
